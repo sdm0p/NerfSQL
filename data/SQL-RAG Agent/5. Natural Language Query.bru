@@ -1,0 +1,29 @@
+meta {
+  name: 5. Natural Language Query
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/query
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "question": "List all users and their country codes"
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  Converts a natural language question to SQL, executes it, and returns the result. Will self-correct up to 3 times on error.
+}

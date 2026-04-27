@@ -1,0 +1,25 @@
+meta {
+  name: 6. Query — Aggregation
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/query
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "question": "Show total travel emissions per user"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

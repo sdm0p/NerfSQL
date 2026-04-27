@@ -1,0 +1,22 @@
+[
+  {
+    "question": "List all users and their country codes",
+    "expected_sql": "SELECT user_id, full_name, country_code FROM users;"
+  },
+  {
+    "question": "Show total travel emissions per user",
+    "expected_sql": "SELECT user_id, SUM(co2e_kg) AS total_travel_co2e_kg FROM travel_entries GROUP BY user_id;"
+  },
+  {
+    "question": "Which household had the highest total CO2e in April 2026?",
+    "expected_sql": "SELECT household_id, total_co2e_kg FROM calculation_runs WHERE period_start >= '2026-04-01' AND period_end <= '2026-04-30' ORDER BY total_co2e_kg DESC LIMIT 1;"
+  },
+  {
+    "question": "Get recommendations with estimated impact for each user",
+    "expected_sql": "SELECT user_id, category, impact_estimate_kg, recommendation_text FROM recommendations;"
+  },
+  {
+    "question": "How much electricity did each household consume in March 2026?",
+    "expected_sql": "SELECT household_id, SUM(kwh) AS total_kwh FROM electricity_entries WHERE billing_start >= '2026-03-01' AND billing_end <= '2026-03-31' GROUP BY household_id;"
+  }
+]

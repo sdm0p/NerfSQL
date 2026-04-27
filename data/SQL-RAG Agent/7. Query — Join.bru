@@ -1,0 +1,25 @@
+meta {
+  name: 7. Query — Join
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{base_url}}/query
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "question": "List users with their household names and latest monthly total CO2e"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

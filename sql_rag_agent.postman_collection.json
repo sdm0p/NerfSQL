@@ -1,0 +1,185 @@
+{
+  "info": {
+    "name": "SQL-RAG Agent",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "chat_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/health",
+        "description": "Verify the server is running."
+      }
+    },
+    {
+      "name": "2. Ingest Schema (use .env DB_URI)",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/ingest",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        },
+        "description": "Extracts schema from the DB_URI set in .env and builds the vector index. Send an empty body to use the default DB_URI."
+      }
+    },
+    {
+      "name": "3. Ingest Schema (custom DB URI)",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/ingest",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"db_uri\": \"sqlite:///data/local.db\"\n}"
+        },
+        "description": "Override the DB URI at ingest time — useful for pointing at a different database without changing .env."
+      }
+    },
+    {
+      "name": "4. View Ingested Schema",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/schema",
+        "description": "Returns all schema chunks currently loaded. Useful to verify ingestion worked before querying."
+      }
+    },
+    {
+      "name": "5. Natural Language Query",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/query",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"For each user, show their name, total CO2e emissions broken down by category, the household they belong to, and rank them by highest total emissions\"\n}"
+        },
+        "description": "Converts a natural language question to SQL, executes it, and returns the result. Will self-correct up to 3 times on error. Response includes a chat_id for conversation tracking. The Tests script auto-saves chat_id to the collection variable for use in 5a."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.chat_id) {",
+              "    pm.collectionVariables.set('chat_id', json.chat_id);",
+              "    console.log('chat_id saved:', json.chat_id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5a. Resume Chat by ID",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/query?chat_id={{chat_id}}",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Which of those users has the highest emissions in the transport category specifically?\"\n}"
+        },
+        "description": "Continue the conversation from endpoint 5. The chat_id collection variable is automatically populated after running endpoint 5 — no manual copy-paste needed."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.chat_id) {",
+              "    pm.collectionVariables.set('chat_id', json.chat_id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Query — Aggregation",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/query",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Show total travel emissions per user\"\n}"
+        }
+      }
+    },
+    {
+      "name": "7. Query — Join",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/query",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"List users with their household names and latest monthly total CO2e\"\n}"
+        }
+      }
+    },
+    {
+      "name": "8. View Chat History — List All",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/history",
+        "description": "Returns metadata for all active chat sessions, including chat_id, creation time, and message counts."
+      }
+    },
+    {
+      "name": "9. View Chat History — Specific Chat",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/history/{{chat_id}}",
+        "description": "Returns the full conversation history for the chat_id saved from endpoint 5. The {{chat_id}} variable is auto-populated — no manual replacement needed."
+      }
+    }
+  ]
+}

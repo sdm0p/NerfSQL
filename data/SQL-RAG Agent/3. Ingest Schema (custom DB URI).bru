@@ -1,0 +1,29 @@
+meta {
+  name: 3. Ingest Schema (custom DB URI)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/ingest
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "db_uri": "sqlite:///data/local.db"
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  Override the DB URI at ingest time — useful for pointing at a different database without changing .env.
+}

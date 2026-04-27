@@ -1,0 +1,27 @@
+meta {
+  name: 2. Ingest Schema (use .env DB_URI)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/ingest
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  Extracts schema from the DB_URI set in .env and builds the vector index. Send an empty body to use the default DB_URI.
+}
