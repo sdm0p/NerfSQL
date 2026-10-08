@@ -80,7 +80,7 @@ def get_llm(provider_id: str | None = None, model: str | None = None, profile: P
             p = profile if isinstance(profile, ProviderProfile) else _profile_from_mapping(profile)
         else:
             if not settings.groq_api_key: raise ProviderError("missing_api_key", "GROQ_API_KEY is not configured")
-            p = ProviderProfile("default", "default", "Default Groq", "groq", settings.groq_api_key, model or cfg.get("model", "llama-3.1-8b-instant"))
+            p = ProviderProfile("default", "default", "Default Groq", "groq", settings.groq_api_key, model or cfg.get("model", "openai/gpt-oss-20b"))
     else:
         p = profile if isinstance(profile, ProviderProfile) else _profile_from_mapping(profile)
         if not p.enabled: raise ProviderError("provider_disabled", "Provider is disabled")
