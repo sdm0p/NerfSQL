@@ -29,7 +29,10 @@ def enqueue_seed(dataset: str = "sustainability-demo") -> dict:
             main()
         return {"queued": True, "mode": "local", "job": job}
     client.rpush(QUEUE_KEY, json.dumps(job))
-    return {"queued": True, "job": job}
+    # Process immediately for the single-container demo; the Redis record
+    # remains durable and startup draining can replay it after a restart.
+    drain_seed_queue()
+    return {"queued": True, "processed": True, "job": job}
 
 def _database_ready(path: str) -> bool:
     if not Path(path).exists(): return False
