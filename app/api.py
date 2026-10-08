@@ -92,7 +92,8 @@ def _compact_sql(sql: str) -> str:
 
 @app.get("/health", summary="Health check", tags=["Utility"])
 def health():
-    return {"status": "ok"}
+    """Lightweight liveness probe used by Render and external monitors."""
+    return {"status": "ok", "service": "nerfsql"}
 
 @app.get("/ready", tags=["Utility"])
 def ready():
