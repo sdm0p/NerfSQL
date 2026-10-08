@@ -29,17 +29,29 @@ class QueryResponse:
     result: Optional[list]
     error: Optional[str]
     retries: int
-    chat_id: str
+    chat_id: str = ""
+    connection_id: Optional[str] = None
+    provider_id: Optional[str] = None
+    model: Optional[str] = None
 
-def query_agent(question: str, chat_id: Optional[str] = None) -> QueryResponse:
+def query_agent(question: str, chat_id: Optional[str] = None, connection_id: Optional[str] = None,
+                provider_id: Optional[str] = None, model: Optional[str] = None) -> QueryResponse:
     # Create new session if chat_id not provided, otherwise use existing
     if chat_id is None:
-        chat_id = _session_manager.create_session(question)
+        chat_id = _session_manager.create_session(question, connection_id, provider_id, model)
     else:
-        _session_manager.add_query(chat_id, question)
+        existing = _session_manager.get_session(chat_id)
+        if existing:
+            connection_id = connection_id or existing.connection_id
+            provider_id = provider_id or existing.provider_id
+            model = model or existing.model
+        _session_manager.add_query(chat_id, question, connection_id=connection_id,
+                                   provider_id=provider_id, model=model)
 
     schema = _get_retriever().retrieve(question)
-    state = {"question": question, "schema": schema, "sql": "", "result": None, "error": None, "retries": 0}
+    state = {"question": question, "schema": schema, "sql": "", "result": None,
+             "error": None, "retries": 0, "connection_id": connection_id,
+             "provider_id": provider_id, "model": model}
     final = _get_graph().invoke(state)
 
     # Record response to session
@@ -50,6 +62,8 @@ def query_agent(question: str, chat_id: Optional[str] = None) -> QueryResponse:
         result=final["result"],
         error=final["error"],
         retries=final["retries"],
+        connection_id=final.get("connection_id"), provider_id=final.get("provider_id"),
+        model=final.get("model"),
     )
 
     return QueryResponse(
@@ -58,4 +72,6 @@ def query_agent(question: str, chat_id: Optional[str] = None) -> QueryResponse:
         error=final["error"],
         retries=final["retries"],
         chat_id=chat_id,
+        connection_id=final.get("connection_id"), provider_id=final.get("provider_id"),
+        model=final.get("model"),
     )

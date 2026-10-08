@@ -19,6 +19,9 @@ class QueryRecord:
     timestamp: datetime
     question: str
     error: Optional[str] = None
+    connection_id: Optional[str] = None
+    provider_id: Optional[str] = None
+    model: Optional[str] = None
 
 
 @dataclass
@@ -30,6 +33,9 @@ class ResponseRecord:
     result: Optional[list]
     error: Optional[str]
     retries: int
+    connection_id: Optional[str] = None
+    provider_id: Optional[str] = None
+    model: Optional[str] = None
 
 
 @dataclass
@@ -40,6 +46,9 @@ class ChatSession:
     first_query: QueryRecord
     queries: deque = field(default_factory=lambda: deque(maxlen=4))  # Last 4 queries
     responses: deque = field(default_factory=lambda: deque(maxlen=4))  # Last 4 responses
+    connection_id: Optional[str] = None
+    provider_id: Optional[str] = None
+    model: Optional[str] = None
 
 
 class SessionManager:
@@ -52,19 +61,22 @@ class SessionManager:
         self._sessions: Dict[str, ChatSession] = {}
         self._lock = Lock()
 
-    def create_session(self, first_question: str) -> str:
+    def create_session(self, first_question: str, connection_id: Optional[str] = None,
+                       provider_id: Optional[str] = None, model: Optional[str] = None) -> str:
         """
         Create a new session and record the first query.
         Returns the chat_id.
         """
         chat_id = str(uuid4())
         now = datetime.now()
-        first_query = QueryRecord(timestamp=now, question=first_question)
+        first_query = QueryRecord(timestamp=now, question=first_question,
+                                  connection_id=connection_id, provider_id=provider_id, model=model)
 
         session = ChatSession(
             chat_id=chat_id,
             created_at=now,
             first_query=first_query,
+            connection_id=connection_id, provider_id=provider_id, model=model,
         )
 
         with self._lock:
@@ -77,7 +89,9 @@ class SessionManager:
         with self._lock:
             return self._sessions.get(chat_id)
 
-    def add_query(self, chat_id: str, question: str, error: Optional[str] = None) -> bool:
+    def add_query(self, chat_id: str, question: str, error: Optional[str] = None,
+                  connection_id: Optional[str] = None, provider_id: Optional[str] = None,
+                  model: Optional[str] = None) -> bool:
         """
         Add a query to an existing session.
         Returns True if successful, False if chat_id not found.
@@ -86,13 +100,21 @@ class SessionManager:
         if not session:
             return False
 
-        query_record = QueryRecord(timestamp=datetime.now(), question=question, error=error)
+        query_record = QueryRecord(timestamp=datetime.now(), question=question, error=error,
+                                   connection_id=connection_id, provider_id=provider_id, model=model)
+        if connection_id is not None:
+            session.connection_id = connection_id
+        if provider_id is not None:
+            session.provider_id = provider_id
+        if model is not None:
+            session.model = model
         with self._lock:
             session.queries.append(query_record)
         return True
 
     def add_response(self, chat_id: str, sql: str, sql_raw: str, result: Optional[list],
-                    error: Optional[str], retries: int) -> bool:
+                    error: Optional[str], retries: int, connection_id: Optional[str] = None,
+                    provider_id: Optional[str] = None, model: Optional[str] = None) -> bool:
         """
         Add a response to an existing session.
         Returns True if successful, False if chat_id not found.
@@ -108,6 +130,7 @@ class SessionManager:
             result=result,
             error=error,
             retries=retries,
+            connection_id=connection_id, provider_id=provider_id, model=model,
         )
         with self._lock:
             session.responses.append(response_record)
@@ -125,6 +148,9 @@ class SessionManager:
                     "created_at": session.created_at.isoformat(),
                     "query_count": len(session.queries),
                     "response_count": len(session.responses),
+                    "connection_id": session.connection_id,
+                    "provider_id": session.provider_id,
+                    "model": session.model,
                 }
                 for session in self._sessions.values()
             ]
@@ -143,16 +169,25 @@ class SessionManager:
             return {
                 "chat_id": session.chat_id,
                 "created_at": session.created_at.isoformat(),
+                "connection_id": session.connection_id,
+                "provider_id": session.provider_id,
+                "model": session.model,
                 "first_query": {
                     "timestamp": session.first_query.timestamp.isoformat(),
                     "question": session.first_query.question,
                     "error": session.first_query.error,
+                    "connection_id": session.first_query.connection_id,
+                    "provider_id": session.first_query.provider_id,
+                    "model": session.first_query.model,
                 },
                 "queries": [
                     {
                         "timestamp": q.timestamp.isoformat(),
                         "question": q.question,
                         "error": q.error,
+                        "connection_id": q.connection_id,
+                        "provider_id": q.provider_id,
+                        "model": q.model,
                     }
                     for q in session.queries
                 ],
@@ -164,6 +199,9 @@ class SessionManager:
                         "result": r.result,
                         "error": r.error,
                         "retries": r.retries,
+                        "connection_id": r.connection_id,
+                        "provider_id": r.provider_id,
+                        "model": r.model,
                     }
                     for r in session.responses
                 ],

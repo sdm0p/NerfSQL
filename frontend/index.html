@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NerfSQL Console</title>
+  <link rel="stylesheet" href="/frontend/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">N</span><span>NerfSQL</span><small>CONSOLE</small></div>
+      <div class="side-label">Workspace</div>
+      <button class="nav active" data-view="query"><span>01</span> Query studio</button>
+      <button class="nav" data-view="connections"><span>02</span> Connections</button>
+      <button class="nav" data-view="providers"><span>03</span> AI providers</button>
+      <button class="nav" data-view="history"><span>04</span> Run history</button>
+      <div class="sidebar-footer"><span class="status-dot"></span><span>API connected</span><code id="apiUrl">127.0.0.1:8000</code></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div><span class="eyebrow">AGENTIC TEXT TO SQL</span><h1 id="pageTitle">Query studio</h1></div><div class="top-actions"><button class="ghost" id="healthBtn">Check health</button><span class="health" id="healthState">Unknown</span></div></header>
+
+      <section class="view" id="queryView">
+        <div class="query-grid">
+          <div class="panel prompt-panel">
+            <div class="panel-head"><div><span class="eyebrow">NATURAL LANGUAGE</span><h2>Ask your data</h2></div><span class="step">01 / 03</span></div>
+            <label for="question">What do you want to know?</label>
+            <textarea id="question" placeholder="Show total travel emissions per user in April 2026..."></textarea>
+            <div class="controls"><label>Database<select id="connectionSelect"><option value="">Default connection</option></select></label><label>Provider<select id="providerSelect"><option value="">Default Groq</option></select></label></div>
+            <button class="primary" id="runQuery">Run query <span>↗</span></button>
+            <div class="hint">Read-only execution · correction loop enabled · max 3 retries</div>
+          </div>
+          <div class="panel result-panel"><div class="panel-head"><div><span class="eyebrow">LIVE TRACE</span><h2 id="resultTitle">Waiting for a query</h2></div><span class="trace-state" id="traceState">IDLE</span></div><div id="resultBody" class="result-body empty"><div class="empty-icon">⌁</div><p>Your generated SQL and returned rows will appear here.</p></div></div>
+        </div>
+        <div class="panel schema-panel"><div class="panel-head"><div><span class="eyebrow">SCHEMA CONTEXT</span><h2>Available tables</h2></div><div><button class="ghost small" id="seedDemo">Queue demo data</button> <button class="ghost small" id="refreshSchema">Refresh</button></div></div><div class="table-list" id="schemaList"><span class="muted">Load a schema to see available tables.</span></div></div>
+      </section>
+
+      <section class="view hidden" id="connectionsView"><div class="section-intro"><span class="eyebrow">DATABASES</span><h2>Connect your sources</h2><p>Store encrypted connection profiles and switch the active source from Query studio.</p></div><div class="split"><form class="panel form-panel" id="connectionForm"><h3>Add a connection</h3><label>Name<input name="name" required placeholder="Analytics warehouse" /></label><label>SQLAlchemy URI<input name="db_uri" required placeholder="postgresql://user:password@host/db" /></label><label>Preferred provider ID<input name="provider_id" placeholder="Optional provider ID" /></label><button class="primary">Test & save <span>↗</span></button><p class="form-message" id="connectionMessage"></p></form><div class="panel list-panel"><div class="panel-head"><h3>Saved connections</h3><button class="ghost small" id="refreshConnections">Refresh</button></div><div id="connectionsList" class="stack-list"><span class="muted">No connections yet.</span></div></div></div></section>
+
+      <section class="view hidden" id="providersView"><div class="section-intro"><span class="eyebrow">MODEL ROUTING</span><h2>Bring your own model</h2><p>Use Groq, OpenAI, Anthropic, Gemini, or any OpenAI-compatible endpoint.</p></div><div class="split"><form class="panel form-panel" id="providerForm"><h3>Add a provider</h3><label>Display name<input name="name" required placeholder="My OpenRouter" /></label><label>Provider type<select name="provider_type"><option value="groq">Groq</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option><option value="openai_compatible">OpenAI-compatible</option></select></label><label>API key<input name="api_key" type="password" required placeholder="sk-..." /></label><label>Model<input name="model" required placeholder="llama-3.1-8b-instant" /></label><label>Base URL <span class="optional">optional</span><input name="base_url" placeholder="https://api.example.com/v1" /></label><button class="primary">Validate & save <span>↗</span></button><p class="form-message" id="providerMessage"></p></form><div class="panel list-panel"><div class="panel-head"><h3>Configured providers</h3><button class="ghost small" id="refreshProviders">Refresh</button></div><div id="providersList" class="stack-list"><span class="muted">No providers yet.</span></div></div></div></section>
+
+      <section class="view hidden" id="historyView"><div class="section-intro"><span class="eyebrow">OBSERVABILITY</span><h2>Run history</h2><p>Follow the question, model, SQL, retries, and returned data for each chat.</p></div><div class="panel history-panel"><div class="panel-head"><h3>Recent sessions</h3><button class="ghost small" id="refreshHistory">Refresh</button></div><div id="historyList" class="history-list"><span class="muted">No sessions yet.</span></div></div></section>
+    </main>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="/frontend/app.js"></script>
+</body>
+</html>

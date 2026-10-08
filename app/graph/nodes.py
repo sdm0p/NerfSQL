@@ -37,9 +37,13 @@ class AgentState(TypedDict):
     result: Optional[list]
     error: Optional[str]
     retries: int
+    # Optional selections carried through the graph for multi-tenant execution.
+    connection_id: Optional[str]
+    provider_id: Optional[str]
+    model: Optional[str]
 
 def generate_sql(state: AgentState) -> AgentState:
-    llm = get_llm()
+    llm = get_llm(provider_id=state.get("provider_id"), model=state.get("model"))
     prompt = GENERATE_PROMPT.format(
         schema_toon=schema_text_to_toon(state["schema"]),
         question=state["question"],
@@ -67,7 +71,7 @@ def validate_sql_semantic(state: AgentState) -> AgentState:
     sql = state["sql"]
     available_tables = _get_available_tables(state["schema"])
 
-    llm = get_llm()
+    llm = get_llm(provider_id=state.get("provider_id"), model=state.get("model"))
     prompt = VALIDATE_PROMPT.format(
         available_tables=", ".join(available_tables),
         question=state["question"],
@@ -93,13 +97,13 @@ def validate_and_execute(state: AgentState) -> AgentState:
     if not is_safe(sql):
         return {**state, "error": "Blocked: destructive SQL detected", "result": None}
     try:
-        result = execute_query(sql)
+        result = execute_query(sql, connection_id=state.get("connection_id"))
         return {**state, "result": result, "error": None}
     except Exception as e:
         return {**state, "error": str(e), "result": None}
 
 def correct_sql(state: AgentState) -> AgentState:
-    llm = get_llm()
+    llm = get_llm(provider_id=state.get("provider_id"), model=state.get("model"))
     prompt = CORRECT_PROMPT.format(
         sql=state["sql"],
         error=state["error"],
@@ -107,7 +111,13 @@ def correct_sql(state: AgentState) -> AgentState:
     )
     raw = llm.invoke([HumanMessage(content=prompt)]).content
     sql = _normalize_sql(extract_sql_from_toon(raw))
-    return {**state, "sql": sql, "retries": state["retries"] + 1}
+    return {
+        **state,
+        "sql": sql,
+        "error": None,
+        "result": None,
+        "retries": state["retries"] + 1,
+    }
 
 def should_retry(state: AgentState) -> str:
     if state.get("error") and state["retries"] < MAX_RETRIES:

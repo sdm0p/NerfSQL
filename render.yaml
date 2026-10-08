@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: nerfsql-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_INDEX_NAME
+        value: nerfsql-schema
+      - key: PINECONE_NAMESPACE
+        value: default
+      - key: PINECONE_REGION
+        value: us-east-1
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      - key: UPSTASH_REDIS_URL
+        sync: false
+      - key: CONNECTION_STORE_URI
+        value: sqlite:////app/data/connections.db
+      - key: MOCK_DB_PATH
+        value: /app/data/local.db

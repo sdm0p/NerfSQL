@@ -16,7 +16,10 @@ def _candidate_uris() -> list[str]:
         uris.append(LOCAL_DB_URI)
     return uris
 
-def get_engine():
+def get_engine(connection_id: str | None = None, *, owner_id: str | None = None):
+    if connection_id:
+        from app.db.connections import get_connection_engine
+        return get_connection_engine(connection_id, owner_id=owner_id)
     global _engine
     if _engine is None:
         last_error: Exception | None = None
@@ -39,7 +42,7 @@ def get_engine():
             ) from last_error
     return _engine
 
-def execute_query(sql: str) -> list[dict]:
-    with get_engine().connect() as conn:
+def execute_query(sql: str, connection_id: str | None = None, *, owner_id: str | None = None) -> list[dict]:
+    with get_engine(connection_id, owner_id=owner_id).connect() as conn:
         result = conn.execute(text(sql))
         return [dict(row._mapping) for row in result]
