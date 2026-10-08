@@ -1,4 +1,5 @@
 import json
+import os
 
 import faiss
 import numpy as np
@@ -7,7 +8,10 @@ from fastembed import TextEmbedding
 from app.core.config import settings
 
 class SchemaRetriever:
-    def __init__(self, chunks_path: str = "data/schema_chunks.json", top_k: int = 5):
+    def __init__(self, chunks_path: str | None = None, top_k: int = 5):
+        if chunks_path is None:
+            db_path = os.getenv("MOCK_DB_PATH", "data/local.db")
+            chunks_path = os.path.join(os.path.dirname(db_path), "schema_chunks.json")
         self.top_k = top_k
         self.model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
         self.pinecone_api_key = settings.pinecone_api_key

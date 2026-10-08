@@ -204,7 +204,8 @@ def ingest(req: IngestRequest = IngestRequest()):
 @app.get("/schema", summary="Retrieve ingested schema chunks", tags=["Schema"])
 def schema():
     try:
-        with open("data/schema_chunks.json") as f:
+        schema_path = os.path.join(os.path.dirname(os.getenv("MOCK_DB_PATH", "data/local.db")), "schema_chunks.json")
+        with open(schema_path) as f:
             chunks = json.load(f)
         return {"count": len(chunks), "chunks": chunks}
     except FileNotFoundError:
