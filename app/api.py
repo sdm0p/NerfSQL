@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sqlite3
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import RedirectResponse
@@ -205,6 +206,17 @@ def ingest(req: IngestRequest = IngestRequest()):
 def schema():
     try:
         schema_path = os.path.join(os.path.dirname(os.getenv("MOCK_DB_PATH", "data/local.db")), "schema_chunks.json")
+        if not os.path.exists(schema_path):
+            db_path = os.getenv("MOCK_DB_PATH", "data/local.db")
+            if os.path.exists(db_path):
+                with sqlite3.connect(db_path) as conn:
+                    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").fetchall()
+                    chunks = []
+                    for (table,) in tables:
+                        cols = [row[1] for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall()]
+                        chunks.append(f"Table: {table}\nColumns: {', '.join(cols)}")
+                with open(schema_path, "w", encoding="utf-8") as out:
+                    json.dump(chunks, out)
         with open(schema_path) as f:
             chunks = json.load(f)
         return {"count": len(chunks), "chunks": chunks}
