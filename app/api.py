@@ -225,8 +225,14 @@ def schema():
 
 @app.post("/query", summary="Run a natural language query", tags=["Query"])
 def query(req: QueryRequest, chat_id: str | None = Query(None)):
-    resp: QueryResponse = query_agent(req.question, chat_id=chat_id, connection_id=req.connection_id,
-                                      provider_id=req.provider_id, model=req.model)
+    try:
+        resp: QueryResponse = query_agent(req.question, chat_id=chat_id, connection_id=req.connection_id,
+                                          provider_id=req.provider_id, model=req.model)
+    except Exception as exc:
+        message = str(exc)
+        if "model_not_found" in message or "does not exist" in message:
+            raise HTTPException(status_code=422, detail="The selected LLM model is unavailable. Choose a supported model and retry.")
+        raise HTTPException(status_code=502, detail="The selected LLM provider could not complete the request.")
 
     # Build response conditionally
     response_data = {
