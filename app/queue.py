@@ -21,7 +21,13 @@ def enqueue_seed(dataset: str = "sustainability-demo") -> dict:
     job = {"job_id": f"{dataset}:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}", "dataset": dataset}
     client = _redis()
     if client is None:
-        return {"queued": False, "reason": "UPSTASH_REDIS_URL is not configured", "job": job}
+        # Keep the demo usable without Redis; production deployments still use
+        # Upstash for durable replay across restarts.
+        path = os.getenv("MOCK_DB_PATH", "data/local.db")
+        if not _database_ready(path):
+            from scripts.create_sample_db import main
+            main()
+        return {"queued": True, "mode": "local", "job": job}
     client.rpush(QUEUE_KEY, json.dumps(job))
     return {"queued": True, "job": job}
 
