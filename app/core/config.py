@@ -21,8 +21,8 @@ class Settings:
     def from_env(cls) -> "Settings":
         return cls(
             db_uri=os.environ.get("DB_URI"),
-            groq_api_key=os.environ.get("GROQ_API_KEY"),
-            pinecone_api_key=os.environ.get("PINECONE_API_KEY"),
+            groq_api_key=(os.environ.get("GROQ_API_KEY") or "").strip() or None,
+            pinecone_api_key=(os.environ.get("PINECONE_API_KEY") or "").strip() or None,
             pinecone_index_name=os.environ.get("PINECONE_INDEX_NAME", "sql-schema-rag"),
             pinecone_namespace=os.environ.get("PINECONE_NAMESPACE", "default"),
             pinecone_region=os.environ.get("PINECONE_REGION", "us-east-1"),

@@ -59,6 +59,7 @@ def _profile_from_mapping(profile: Mapping[str, Any]) -> ProviderProfile:
     kind = str(profile.get("provider_type", profile.get("type", ""))).lower()
     if kind not in {"groq", "openai", "anthropic", "gemini", "openai_compatible"}: raise ProviderError("unsupported_provider", f"Unsupported provider: {kind}")
     api_key = decrypt_secret(str(profile["encrypted_api_key"])) if profile.get("encrypted_api_key") else profile.get("api_key")
+    api_key = str(api_key).strip() if api_key else ""
     if not api_key: raise ProviderError("missing_api_key", "Provider API key is required")
     base_url = decrypt_secret(str(profile["encrypted_base_url"])) if profile.get("encrypted_base_url") else profile.get("base_url")
     if kind == "openai_compatible" and not validate_base_url(base_url): raise ProviderError("missing_base_url", "OpenAI-compatible providers require base_url")
