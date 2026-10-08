@@ -24,3 +24,5 @@ services:
         value: sqlite:////app/data/connections.db
       - key: MOCK_DB_PATH
         value: /app/data/local.db
+      - key: ALLOWED_HOSTS
+        value: nerfsql-demo.onrender.com,localhost,127.0.0.1

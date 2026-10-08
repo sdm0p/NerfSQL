@@ -36,7 +36,12 @@ def home():
     return RedirectResponse(url="/frontend/")
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
+_allowed_hosts = [
+    host.strip()
+    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+    if host.strip()
+]
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost", "http://127.0.0.1"],
