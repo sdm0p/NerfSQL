@@ -267,7 +267,20 @@ def main() -> None:
     conn.commit()
     conn.close()
 
-    print("Created data/local.db using personal_sustainbilty.sql")
+    schema_path = os.path.join(os.path.dirname(DB_PATH), "schema_chunks.json")
+    with sqlite3.connect(DB_PATH) as schema_conn:
+        tables = schema_conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        ).fetchall()
+        chunks = []
+        for (table,) in tables:
+            columns = [row[1] for row in schema_conn.execute(f'PRAGMA table_info("{table}")').fetchall()]
+            chunks.append(f"Table: {table}\nColumns: {', '.join(columns)}")
+    with open(schema_path, "w", encoding="utf-8") as schema_file:
+        import json
+        json.dump(chunks, schema_file)
+
+    print(f"Created {DB_PATH} using personal_sustainbilty.sql")
     print("Seeded: 6 users, 3 households, 11 emission factors")
     print("        21 travel | 12 electricity | 13 food | 9 waste | 9 purchase entries")
     print("        6 goals | 8 calculation runs | 7 recommendations")
