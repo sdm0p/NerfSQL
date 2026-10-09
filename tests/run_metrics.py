@@ -36,6 +36,20 @@ def request_json(base_url: str, path: str, payload: dict | None = None) -> tuple
         return 0, {"error": str(exc)}
 
 
+def run_query_with_backoff(base_url: str, payload: dict, max_attempts: int) -> tuple[int, dict, float]:
+    total_started = time.perf_counter()
+    status, response = 0, {}
+    for attempt in range(1, max_attempts + 1):
+        status, response = request_json(base_url, "/query", payload)
+        if status != 429:
+            break
+        if attempt < max_attempts:
+            wait_seconds = 60 * attempt
+            print(f"  provider rate limit; waiting {wait_seconds}s before retry {attempt + 1}/{max_attempts}")
+            time.sleep(wait_seconds)
+    return status, response, round((time.perf_counter() - total_started) * 1000, 2)
+
+
 def normalized_blob(rows: list) -> str:
     return json.dumps(rows, sort_keys=True, default=str).lower().replace(".0", "")
 
@@ -119,6 +133,7 @@ def main() -> None:
     parser.add_argument("--provider-id")
     parser.add_argument("--delay", type=float, default=2.0, help="Delay between LLM calls for free-tier rate limits")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--modes", nargs="+", choices=["rag", "full"], default=["rag", "full"])
     parser.add_argument("--output-dir", default="benchmark-results")
     args = parser.parse_args()
@@ -143,9 +158,9 @@ def main() -> None:
         mode_rows = []
         for number, case in enumerate(cases, 1):
             payload = {"question": case["question"], "connection_id": connection_id, "provider_id": args.provider_id, "schema_strategy": mode}
-            started = time.perf_counter()
-            status, response = request_json(args.base_url, "/query", payload)
-            wall_latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            status, response, wall_latency_ms = run_query_with_backoff(
+                args.base_url, payload, args.max_attempts
+            )
             scored = score_case(case, response, status)
             row = {"id": case["id"], "question": case["question"], "mode": mode, "status": status, "sql": response.get("sql"), "result": response.get("result"), "retries": response.get("retries", 0), "metrics": response.get("metrics", {}), "wall_latency_ms": wall_latency_ms, **scored}
             mode_rows.append(row)

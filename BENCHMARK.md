@@ -21,7 +21,8 @@ First deploy the current API and ensure the `sd` connection is present and its s
   --base-url https://nerfsql-demo.onrender.com `
   --connection-name sd `
   --modes rag full `
-  --delay 2
+  --delay 10 `
+  --max-attempts 3
 ```
 
 Use a small smoke run before the complete run:
@@ -35,7 +36,7 @@ The runner writes:
 - `benchmark-results/metrics.json`: case-level evidence.
 - `benchmark-results/REPORT.md`: résumé-friendly aggregate metrics.
 
-Provider free-tier rate limits can interrupt a complete run. Increase `--delay`, keep the partial JSON evidence, and rerun when the quota resets. Never replace rate-limit failures with guessed values.
+Provider free-tier rate limits can interrupt a complete run. The runner backs off on HTTP 429 responses. Increase `--delay`, keep the JSON evidence, and rerun when the quota resets. Provider failures are evidence of an incomplete run, never accuracy or hallucination results.
 
 ## Free infrastructure load test
 

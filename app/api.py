@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -28,6 +29,7 @@ from app.llm.client import get_llm, ProviderError
 from app.queue import enqueue_seed, drain_seed_queue
 
 app = FastAPI(title="SQL-RAG Agent", description="Natural language to SQL agent powered by RAG", version="1.0.0")
+logger = logging.getLogger("nerfsql.api")
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 @app.on_event("startup")
@@ -287,9 +289,25 @@ def query(req: QueryRequest, chat_id: str | None = Query(None)):
                                           schema_strategy=req.schema_strategy)
     except Exception as exc:
         message = str(exc)
-        if "model_not_found" in message or "does not exist" in message:
+        lowered = message.lower()
+        logger.warning("Query provider failure type=%s", type(exc).__name__)
+        if "rate limit" in lowered or "rate_limit" in lowered or "429" in lowered:
+            raise HTTPException(
+                status_code=429,
+                detail={"code": "provider_rate_limit", "message": "The LLM provider rate limit was reached. Retry after the quota resets."},
+                headers={"Retry-After": "60"},
+            )
+        if "authentication" in lowered or "invalid api key" in lowered or "401" in lowered:
+            raise HTTPException(
+                status_code=401,
+                detail={"code": "provider_authentication_failed", "message": "The selected LLM provider rejected its API key."},
+            )
+        if "model_not_found" in lowered or "does not exist" in lowered:
             raise HTTPException(status_code=422, detail="The selected LLM model is unavailable. Choose a supported model and retry.")
-        raise HTTPException(status_code=502, detail="The selected LLM provider could not complete the request.")
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "provider_request_failed", "message": "The selected LLM provider could not complete the request."},
+        )
 
     # Build response conditionally
     response_data = {
