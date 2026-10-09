@@ -4,6 +4,8 @@ from app.core.config import settings  # ensures env is loaded once
 from app.core.session import SessionManager
 from app.graph.graph import build_graph
 from app.retriever.schema_retriever import SchemaRetriever
+from app.db.connections import get_connection_engine
+from scripts.ingest_schema import extract_schema_from_engine
 
 _ = settings
 
@@ -22,6 +24,14 @@ def _get_retriever():
     if _retriever is None:
         _retriever = SchemaRetriever()
     return _retriever
+
+def _schema_for_query(question: str, connection_id: Optional[str]) -> str:
+    if connection_id:
+        # Connection profiles must always use their own live schema. Reusing the
+        # deployment-wide vector namespace can inject tables from another DB.
+        engine = get_connection_engine(connection_id, owner_id="default")
+        return "\n".join(extract_schema_from_engine(engine))
+    return _get_retriever().retrieve(question)
 
 @dataclass
 class QueryResponse:
@@ -48,7 +58,7 @@ def query_agent(question: str, chat_id: Optional[str] = None, connection_id: Opt
         _session_manager.add_query(chat_id, question, connection_id=connection_id,
                                    provider_id=provider_id, model=model)
 
-    schema = _get_retriever().retrieve(question)
+    schema = _schema_for_query(question, connection_id)
     state = {"question": question, "schema": schema, "sql": "", "result": None,
              "error": None, "retries": 0, "connection_id": connection_id,
              "provider_id": provider_id, "model": model}

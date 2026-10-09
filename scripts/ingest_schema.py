@@ -8,6 +8,7 @@ import numpy as np
 from pinecone import Pinecone, ServerlessSpec
 from fastembed import TextEmbedding
 from sqlalchemy import create_engine, inspect
+from sqlalchemy.engine import Engine
 
 try:
     from app.core.config import settings
@@ -27,8 +28,8 @@ except ModuleNotFoundError:
 
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-def extract_schema(db_uri: str) -> list[str]:
-    engine = create_engine(db_uri)
+def extract_schema_from_engine(engine: Engine) -> list[str]:
+    """Return schema chunks for an already configured database engine."""
     inspector = inspect(engine)
     chunks = []
     for table in inspector.get_table_names():
@@ -39,6 +40,14 @@ def extract_schema(db_uri: str) -> list[str]:
             chunk += f"\nForeign keys: {'; '.join(fks)}"
         chunks.append(chunk)
     return chunks
+
+
+def extract_schema(db_uri: str) -> list[str]:
+    engine = create_engine(db_uri)
+    try:
+        return extract_schema_from_engine(engine)
+    finally:
+        engine.dispose()
 
 
 def _list_index_names(pc: Pinecone) -> set[str]:
