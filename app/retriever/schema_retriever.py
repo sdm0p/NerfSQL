@@ -35,7 +35,13 @@ class SchemaRetriever:
         else:
             self.index = None
 
-    def retrieve(self, query: str) -> str:
+    def retrieve(
+        self,
+        query: str,
+        *,
+        namespace: str | None = None,
+        allow_local_fallback: bool = True,
+    ) -> str:
         vec = np.array(list(self.model.embed([query])), dtype=np.float32)[0]
 
         if self.pinecone_index is not None:
@@ -43,7 +49,7 @@ class SchemaRetriever:
                 response = self.pinecone_index.query(
                     vector=vec.tolist(),
                     top_k=self.top_k,
-                    namespace=self.pinecone_namespace,
+                    namespace=namespace or self.pinecone_namespace,
                     include_metadata=True,
                 )
                 matches = response.get("matches") if isinstance(response, dict) else response.matches
@@ -58,6 +64,8 @@ class SchemaRetriever:
             except Exception:
                 pass
 
+        if not allow_local_fallback:
+            return ""
         if not self.index:
             return ""
         _, ids = self.index.search(vec.reshape(1, -1), self.top_k)

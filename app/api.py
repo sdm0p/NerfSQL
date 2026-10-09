@@ -14,7 +14,13 @@ from starlette.requests import Request
 from pydantic import BaseModel
 from app.core.config import settings
 from app.main import QueryResponse, query_agent, _session_manager
-from scripts.ingest_schema import extract_schema, extract_schema_from_engine, upsert_schema_chunks_to_pinecone
+from scripts.ingest_schema import (
+    connection_schema_namespace,
+    delete_pinecone_namespace,
+    extract_schema,
+    extract_schema_from_engine,
+    upsert_schema_chunks_to_pinecone,
+)
 from app.db import connections
 from app.llm import profiles as provider_profiles
 from app.llm.client import get_llm, ProviderError
@@ -133,9 +139,37 @@ def delete_provider(provider_id: str):
 @app.post("/connections", tags=["Connections"])
 def create_connection(req: ConnectionRequest):
     try:
-        return connections.create_profile(owner_id="default", name=req.name, uri=req.db_uri, provider_id=req.provider_id)
+        profile = connections.create_profile(owner_id="default", name=req.name, uri=req.db_uri, provider_id=req.provider_id)
+        profile["schema_index"] = _index_connection_schema(profile["connection_id"])
+        return profile
     except connections.ConnectionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+def _index_connection_schema(connection_id: str) -> dict:
+    engine = connections.get_connection_engine(connection_id, owner_id="default")
+    chunks = extract_schema_from_engine(engine)
+    namespace = connection_schema_namespace(connection_id)
+    if not settings.pinecone_api_key:
+        return {"status": "disabled", "tables": len(chunks), "namespace": namespace}
+    try:
+        count = upsert_schema_chunks_to_pinecone(
+            chunks=chunks,
+            index_name=settings.pinecone_index_name,
+            namespace=namespace,
+            region=settings.pinecone_region,
+            api_key=settings.pinecone_api_key,
+        )
+        return {"status": "indexed", "tables": count, "namespace": namespace}
+    except Exception:
+        return {"status": "failed", "tables": len(chunks), "namespace": namespace}
+
+
+@app.post("/connections/{connection_id}/schema/ingest", tags=["Schema"])
+def ingest_connection_schema(connection_id: str):
+    if not connections.get_profile(connection_id, "default"):
+        raise HTTPException(status_code=404, detail="Connection not found")
+    return _index_connection_schema(connection_id)
 
 @app.get("/connections", tags=["Connections"])
 def list_connections():
@@ -149,6 +183,17 @@ def get_connection(connection_id: str):
 
 @app.delete("/connections/{connection_id}", tags=["Connections"])
 def delete_connection(connection_id: str):
+    if not connections.get_profile(connection_id, "default"):
+        raise HTTPException(status_code=404, detail="Connection not found")
+    if settings.pinecone_api_key:
+        try:
+            delete_pinecone_namespace(
+                settings.pinecone_index_name,
+                connection_schema_namespace(connection_id),
+                settings.pinecone_api_key,
+            )
+        except Exception:
+            pass
     if not connections.delete_profile(connection_id, "default"): raise HTTPException(status_code=404, detail="Connection not found")
     return {"deleted": True, "connection_id": connection_id}
 

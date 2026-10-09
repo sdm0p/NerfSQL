@@ -5,7 +5,7 @@ from app.core.session import SessionManager
 from app.graph.graph import build_graph
 from app.retriever.schema_retriever import SchemaRetriever
 from app.db.connections import get_connection_engine
-from scripts.ingest_schema import extract_schema_from_engine
+from scripts.ingest_schema import connection_schema_namespace, extract_schema_from_engine
 
 _ = settings
 
@@ -27,8 +27,17 @@ def _get_retriever():
 
 def _schema_for_query(question: str, connection_id: Optional[str]) -> str:
     if connection_id:
-        # Connection profiles must always use their own live schema. Reusing the
-        # deployment-wide vector namespace can inject tables from another DB.
+        # Search only the selected connection's vector namespace. Never reuse
+        # the deployment-wide namespace, which may describe a different DB.
+        retrieved = _get_retriever().retrieve(
+            question,
+            namespace=connection_schema_namespace(connection_id),
+            allow_local_fallback=False,
+        )
+        if retrieved:
+            return retrieved
+        # Pinecone is optional, and a newly added connection may still be
+        # indexing. Live introspection keeps queries correct in either case.
         engine = get_connection_engine(connection_id, owner_id="default")
         return "\n".join(extract_schema_from_engine(engine))
     return _get_retriever().retrieve(question)

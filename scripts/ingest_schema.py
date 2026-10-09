@@ -28,6 +28,11 @@ except ModuleNotFoundError:
 
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
+
+def connection_schema_namespace(connection_id: str) -> str:
+    """Keep every saved database in an isolated Pinecone namespace."""
+    return f"connection-{connection_id}"
+
 def extract_schema_from_engine(engine: Engine) -> list[str]:
     """Return schema chunks for an already configured database engine."""
     inspector = inspect(engine)
@@ -96,6 +101,12 @@ def upsert_schema_chunks_to_pinecone(
         raise RuntimeError(f"Pinecone index '{index_name}' is not ready")
 
     index = pc.Index(index_name)
+    try:
+        # A refresh must remove vectors for tables that were renamed or dropped.
+        index.delete(delete_all=True, namespace=namespace)
+    except Exception:
+        # Pinecone may report an absent namespace on the first ingestion.
+        pass
     vectors = []
     for i, (chunk, emb) in enumerate(zip(chunks, embeddings, strict=False)):
         vectors.append(
@@ -111,6 +122,11 @@ def upsert_schema_chunks_to_pinecone(
         index.upsert(vectors=vectors[start : start + batch_size], namespace=namespace)
 
     return len(vectors)
+
+
+def delete_pinecone_namespace(index_name: str, namespace: str, api_key: str) -> None:
+    """Delete all vectors belonging to one connection profile."""
+    Pinecone(api_key=api_key).Index(index_name).delete(delete_all=True, namespace=namespace)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

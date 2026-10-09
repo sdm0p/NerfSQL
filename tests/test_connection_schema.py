@@ -27,13 +27,28 @@ class ConnectionSchemaTests(unittest.TestCase):
         self.assertIn("customer_id", schema)
         self.assertIn("-> customers", schema)
 
+    @patch("app.main._get_retriever")
     @patch("app.main.get_connection_engine")
-    def test_query_schema_uses_selected_connection(self, get_engine):
+    def test_query_schema_uses_selected_connection_fallback(self, get_engine, get_retriever):
         get_engine.return_value = self.engine
+        get_retriever.return_value.retrieve.return_value = ""
         schema = _schema_for_query("list customers", "supabase-connection")
+        get_retriever.return_value.retrieve.assert_called_once_with(
+            "list customers",
+            namespace="connection-supabase-connection",
+            allow_local_fallback=False,
+        )
         get_engine.assert_called_once_with("supabase-connection", owner_id="default")
         self.assertIn("Table: customers", schema)
         self.assertNotIn("electricity_entries", schema)
+
+    @patch("app.main._get_retriever")
+    @patch("app.main.get_connection_engine")
+    def test_query_schema_prefers_connection_vector_namespace(self, get_engine, get_retriever):
+        get_retriever.return_value.retrieve.return_value = "Table: customers\nColumns: customer_id, name"
+        schema = _schema_for_query("list customers", "supabase-connection")
+        self.assertIn("Table: customers", schema)
+        get_engine.assert_not_called()
 
 
 if __name__ == "__main__":
