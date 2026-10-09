@@ -1,5 +1,6 @@
 from typing import TypedDict, Optional
 import re
+import time
 from langchain_core.messages import HumanMessage
 from app.llm.client import get_llm
 from app.llm.prompts import GENERATE_PROMPT, CORRECT_PROMPT, VALIDATE_PROMPT
@@ -41,6 +42,25 @@ class AgentState(TypedDict):
     connection_id: Optional[str]
     provider_id: Optional[str]
     model: Optional[str]
+    input_tokens: int
+    output_tokens: int
+    llm_calls: int
+    llm_latency_ms: float
+
+
+def _record_llm_usage(state: AgentState, response, elapsed_ms: float) -> AgentState:
+    usage = getattr(response, "usage_metadata", None) or {}
+    if not usage:
+        usage = (getattr(response, "response_metadata", None) or {}).get("token_usage", {})
+    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens", 0)) or 0
+    output_tokens = usage.get("output_tokens", usage.get("completion_tokens", 0)) or 0
+    return {
+        **state,
+        "input_tokens": state.get("input_tokens", 0) + int(input_tokens),
+        "output_tokens": state.get("output_tokens", 0) + int(output_tokens),
+        "llm_calls": state.get("llm_calls", 0) + 1,
+        "llm_latency_ms": round(state.get("llm_latency_ms", 0.0) + elapsed_ms, 2),
+    }
 
 def generate_sql(state: AgentState) -> AgentState:
     llm = get_llm(provider_id=state.get("provider_id"), model=state.get("model"))
@@ -48,7 +68,10 @@ def generate_sql(state: AgentState) -> AgentState:
         schema_toon=schema_text_to_toon(state["schema"]),
         question=state["question"],
     )
-    raw = llm.invoke([HumanMessage(content=prompt)]).content
+    started = time.perf_counter()
+    response = llm.invoke([HumanMessage(content=prompt)])
+    state = _record_llm_usage(state, response, (time.perf_counter() - started) * 1000)
+    raw = response.content
     sql = _normalize_sql(extract_sql_from_toon(raw))
     return {**state, "sql": sql, "error": None}
 
@@ -77,7 +100,10 @@ def validate_sql_semantic(state: AgentState) -> AgentState:
         question=state["question"],
         sql=sql,
     )
-    response = llm.invoke([HumanMessage(content=prompt)]).content.strip().upper()
+    started = time.perf_counter()
+    llm_response = llm.invoke([HumanMessage(content=prompt)])
+    state = _record_llm_usage(state, llm_response, (time.perf_counter() - started) * 1000)
+    response = llm_response.content.strip().upper()
 
     if "INVALID" in response:
         return {
@@ -109,7 +135,10 @@ def correct_sql(state: AgentState) -> AgentState:
         error=state["error"],
         schema_toon=schema_text_to_toon(state["schema"]),
     )
-    raw = llm.invoke([HumanMessage(content=prompt)]).content
+    started = time.perf_counter()
+    response = llm.invoke([HumanMessage(content=prompt)])
+    state = _record_llm_usage(state, response, (time.perf_counter() - started) * 1000)
+    raw = response.content
     sql = _normalize_sql(extract_sql_from_toon(raw))
     return {
         **state,

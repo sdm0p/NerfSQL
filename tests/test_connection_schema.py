@@ -50,6 +50,14 @@ class ConnectionSchemaTests(unittest.TestCase):
         self.assertIn("Table: customers", schema)
         get_engine.assert_not_called()
 
+    @patch("app.main._get_retriever")
+    @patch("app.main.get_connection_engine")
+    def test_full_schema_strategy_bypasses_vector_search(self, get_engine, get_retriever):
+        get_engine.return_value = self.engine
+        schema = _schema_for_query("list customers", "supabase-connection", "full")
+        self.assertIn("Table: customers", schema)
+        get_retriever.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

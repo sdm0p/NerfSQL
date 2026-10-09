@@ -256,6 +256,10 @@ Run benchmark queries:
 python -m tests.run_eval
 ```
 
+For reproducible RAG-versus-full-schema metrics across 55 labeled cases, token
+usage, hallucination rate, latency percentiles, and free load testing, see
+[`BENCHMARK.md`](BENCHMARK.md).
+
 Metrics:
 
 - Execution success rate

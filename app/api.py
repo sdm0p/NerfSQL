@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sqlite3
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import RedirectResponse
@@ -74,6 +75,7 @@ class QueryRequest(BaseModel):
     connection_id: str | None = None
     provider_id: str | None = None
     model: str | None = None
+    schema_strategy: Literal["rag", "full"] = "rag"
 
 class ProviderRequest(BaseModel):
     name: str
@@ -281,7 +283,8 @@ def schema(connection_id: str | None = None):
 def query(req: QueryRequest, chat_id: str | None = Query(None)):
     try:
         resp: QueryResponse = query_agent(req.question, chat_id=chat_id, connection_id=req.connection_id,
-                                          provider_id=req.provider_id, model=req.model)
+                                          provider_id=req.provider_id, model=req.model,
+                                          schema_strategy=req.schema_strategy)
     except Exception as exc:
         message = str(exc)
         if "model_not_found" in message or "does not exist" in message:
@@ -296,6 +299,14 @@ def query(req: QueryRequest, chat_id: str | None = Query(None)):
         "connection_id": resp.connection_id,
         "provider_id": resp.provider_id,
         "model": resp.model,
+        "metrics": {
+            "schema_strategy": resp.schema_strategy,
+            "input_tokens": resp.input_tokens,
+            "output_tokens": resp.output_tokens,
+            "llm_calls": resp.llm_calls,
+            "llm_latency_ms": resp.llm_latency_ms,
+            "total_latency_ms": resp.total_latency_ms,
+        },
     }
 
     # Only include SQL fields if SQL was successfully generated
