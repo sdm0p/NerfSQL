@@ -121,16 +121,23 @@ Correction Loop (LLM)
 
 ## Project Structure
 
+The repository uses a compatibility-preserving modular layout. The detailed map,
+runtime flow, and rules for adding files are in
+[`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md).
+
 ```
 NerfSQL/
 │
 ├── app/
-│   ├── graph/              # LangGraph nodes and edges
-│   ├── retriever/          # Schema embedding + retrieval
-│   ├── llm/                # Groq client + prompts
-│   ├── db/                 # DB connection + execution
-│   ├── validators/         # SQL + schema validation
-│   ├── utils/              # logging, parsing, helpers
+│   ├── api.py              # FastAPI routes and middleware
+│   ├── main.py             # Query orchestration
+│   ├── core/               # Settings and sessions
+│   ├── graph/              # LangGraph state, nodes, and edges
+│   ├── retriever/          # Pinecone + FAISS schema retrieval
+│   ├── llm/                # Provider factory, profiles, and prompts
+│   ├── db/                 # Connections, engines, and execution
+│   ├── validators/         # Read-only SQL safety checks
+│   └── utils/              # Parsing and shared helpers
 │
 ├── configs/
 │   ├── model.yaml
@@ -145,7 +152,9 @@ NerfSQL/
 ├── scripts/
 │   ├── ingest_schema.py
 │
-├── README.md
+├── docs/
+│   └── PROJECT_STRUCTURE.md # Detailed structure and compatibility rules
+├── Readme.md
 └── requirements.txt
 ```
 
@@ -258,7 +267,7 @@ python -m tests.run_eval
 
 For reproducible RAG-versus-full-schema metrics across 55 labeled cases, token
 usage, hallucination rate, latency percentiles, and free load testing, see
-[`BENCHMARK.md`](BENCHMARK.md).
+[`docs/BENCHMARK.md`](docs/BENCHMARK.md).
 
 Metrics:
 

@@ -2,7 +2,7 @@ import os
 import sqlite3
 
 DB_PATH = os.getenv("MOCK_DB_PATH", "data/local.db")
-SCHEMA_PATH = "personal_sustainbilty.sql"
+SCHEMA_PATH = "data/seed/personal_sustainability.sql"
 
 
 def main() -> None:
@@ -280,7 +280,7 @@ def main() -> None:
         import json
         json.dump(chunks, schema_file)
 
-    print(f"Created {DB_PATH} using personal_sustainbilty.sql")
+    print(f"Created {DB_PATH} using {SCHEMA_PATH}")
     print("Seeded: 6 users, 3 households, 11 emission factors")
     print("        21 travel | 12 electricity | 13 food | 9 waste | 9 purchase entries")
     print("        6 goals | 8 calculation runs | 7 recommendations")

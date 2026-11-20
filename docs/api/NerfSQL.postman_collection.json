@@ -1,0 +1,127 @@
+{
+  "info": {
+    "name": "NerfSQL",
+    "description": "Natural language to SQL agent powered by RAG",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "chat_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/health"
+      }
+    },
+    {
+      "name": "2. Ingest Schema (default DB)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base_url}}/ingest",
+        "body": { "mode": "raw", "raw": "{}" }
+      }
+    },
+    {
+      "name": "3. Ingest Schema (custom DB URI)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base_url}}/ingest",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"db_uri\": \"sqlite:///data/local.db\"\n}"
+        }
+      }
+    },
+    {
+      "name": "4. View Ingested Schema",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/schema"
+      }
+    },
+    {
+      "name": "5. Query — New Chat",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var json = pm.response.json();",
+              "if (json.chat_id) { pm.collectionVariables.set('chat_id', json.chat_id); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base_url}}/query",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Show total travel emissions per user in April 2026\"\n}"
+        }
+      }
+    },
+    {
+      "name": "6. Query — Continue Chat",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/query?chat_id={{chat_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["query"],
+          "query": [{ "key": "chat_id", "value": "{{chat_id}}" }]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Which user had the highest emissions?\"\n}"
+        }
+      }
+    },
+    {
+      "name": "7. Query — Aggregation",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base_url}}/query",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Get total emissions grouped by transport type\"\n}"
+        }
+      }
+    },
+    {
+      "name": "8. Query — Join",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base_url}}/query",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"List users and their total carbon footprint\"\n}"
+        }
+      }
+    },
+    {
+      "name": "9. List All Chat Sessions",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/history"
+      }
+    },
+    {
+      "name": "10. Get Chat History",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/history/{{chat_id}}"
+      }
+    }
+  ]
+}
