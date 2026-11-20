@@ -1,339 +1,267 @@
+<div align="center">
+
 # NerfSQL
 
-**Schema-aware, self-correcting Text-to-SQL pipeline using LangGraph + Groq**
+### Ask your database a question. Get safe, executable SQL.
+
+Schema-aware, self-correcting Text-to-SQL powered by LangGraph, FastAPI, Pinecone, and pluggable LLM providers.
+
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/Workflow-LangGraph-1f2937)](https://langchain-ai.github.io/langgraph/)
+[![Docker](https://img.shields.io/badge/Deploy-Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+**[Live demo](https://nerfsql-demo.onrender.com/frontend/) · [API docs](https://nerfsql-demo.onrender.com/docs) · [Project handbook](artifacts/NerfSQL_AI_Engineer_Project_Handbook.pdf)**
+
+</div>
 
 ---
 
-## Overview
+## The idea
 
-NerfSQL is a schema-aware text-to-SQL system that converts natural language queries into executable SQL, validates them against a live database, and iteratively corrects errors until a valid result is produced.
+NerfSQL turns a plain-English question into a database answer through a controlled workflow:
 
-The system uses:
+```text
+question → retrieve relevant schema → generate SQL → validate → execute safely
+                                      ↑                         ↓
+                                      └──── correct from error ──┘
+```
 
-- Retrieval-Augmented Generation (RAG) over database schema
-- A constrained LLM loop for SQL generation and correction
-- Execution-based validation against a real database
-- Stateful orchestration via LangGraph
-- Fast inference using Groq models
+The model does not receive an entire database blindly and it does not get unlimited retries. Each connection has an isolated schema namespace, each query carries its database/provider selection, and destructive SQL is rejected before execution.
 
----
+## About NerfSQL
 
-## Key Features
+NerfSQL is an AI engineering portfolio project built to demonstrate how a reliable Text-to-SQL product is assembled beyond a single prompt. It combines retrieval, stateful orchestration, provider abstraction, database safety, encrypted connection profiles, deployment operations, and measurable evaluation in one small system.
 
-### TOON-Based LLM I/O
+The project deliberately separates what is implemented from what is still production work. The live demo is designed for learning and interviews; the roadmap documents the next steps required for authentication, durable metadata, stronger retrieval, and repeatable benchmark evidence.
 
-- LLM-facing schema context is serialized in **TOON** (Token-Oriented Object Notation)
-- SQL generation and correction prompts require TOON responses with a `sql` field
-- Internal parser extracts SQL deterministically from TOON output
+## Why it is interesting
 
-### 1. Schema-Aware Retrieval
+Most Text-to-SQL demos stop at “the model generated a query.” NerfSQL treats SQL generation as one step in a larger engineering system:
 
-- Embeds database schema (tables, columns, relationships)
-- Retrieves only relevant schema chunks per query
-- Avoids context overflow and irrelevant joins
-
----
-
-### 2. Controlled SQL Generation
-
-- Generates SQL using filtered schema context
-- Supports multiple dialects (PostgreSQL, MySQL, etc.)
-- Enforces read-only constraints (no `DROP`, `DELETE`, etc.)
-
----
-
-### 3. Execution-Based Validation
-
-- Runs generated SQL on a live database
-- Captures:
-  - syntax errors
-  - missing columns/tables
-  - invalid joins
-
----
-
-### 4. Self-Correcting Loop (Bounded)
-
-- Parses DB errors and feeds them back to the LLM
-- Iteratively refines queries
-- Stops after a configurable retry limit
-
----
-
-### 5. Deterministic Guardrails
-
-- Query sanitizer blocks destructive operations
-- Schema validator checks table/column existence pre-execution
-- Retry budget prevents infinite loops
-
----
-
-### 6. Observability
-
-- Full execution trace via LangGraph state
-- Logs:
-  - retrieved schema
-  - generated SQL per iteration
-  - errors and corrections
-
----
+- **Schema-aware RAG** limits the prompt to tables relevant to the question.
+- **LangGraph orchestration** makes state, transitions, and retries explicit.
+- **Execution feedback** lets the system repair syntax and database errors.
+- **Safety guardrails** allow read-only SQL and block destructive statements.
+- **Multi-database support** keeps connection engines and Pinecone namespaces isolated.
+- **Multi-provider support** lets a user select Groq, OpenAI, Anthropic, Gemini, or an OpenAI-compatible endpoint.
+- **Operational endpoints** expose health, readiness, schema ingestion, history, and seed jobs.
 
 ## Architecture
 
-```
-User Query
-   │
-   ▼
-Schema Retriever (Vector DB)
-   │
-   ▼
-SQL Generator (LLM)
-   │
-   ▼
-Pre-Execution Validator
-   │
-   ▼
-SQL Execution (DB)
-   │
-   ├── Success ───────────────► Return Result
-   │
-   ▼
-Error Parser
-   │
-   ▼
-Correction Loop (LLM)
-   │
-   └── Retry (bounded)
+```mermaid
+flowchart LR
+    U[Web frontend] --> API[FastAPI]
+    API --> S[Session + query state]
+    API --> R[Schema retriever]
+    R --> P[(Pinecone namespace)]
+    R -. fallback .-> F[(FAISS)]
+    API --> G[LangGraph]
+    G --> L[Provider factory]
+    L --> M[Selected LLM]
+    G --> D[(Selected SQL database)]
+    G --> C{error?}
+    C -->|yes, retries left| G
+    C -->|no| O[Safe result + metrics]
+    API --> Q[(Upstash Redis queue)]
 ```
 
----
+### Query lifecycle
 
-## Tech Stack
+1. The frontend sends a question with optional `connection_id`, `provider_id`, `model`, and `schema_strategy`.
+2. The retriever searches the selected connection's Pinecone namespace. If vectors are unavailable, the service can inspect that database live.
+3. LangGraph passes the question and schema into the generation node.
+4. Semantic validation checks whether the SQL can answer the question using the available tables.
+5. The SQL guard rejects destructive or modifying statements.
+6. The selected SQLAlchemy engine executes the read-only query.
+7. On failure, the correction node receives the SQL, error, schema, and question. The loop is bounded by `MAX_RETRIES`.
+8. The response records SQL, result, retries, connection/provider selection, and usage metadata.
 
-- **Orchestration:** LangGraph
-- **LLM Inference:** Groq
-- **Embeddings:** SentenceTransformers / OpenAI-compatible
-- **Vector Store:** Pinecone (primary) + FAISS fallback
-- **Database:** PostgreSQL / MySQL / SQLite
-- **Backend:** Python (FastAPI optional)
+## Technology map
 
----
+| Layer | Implementation | Why it exists |
+| --- | --- | --- |
+| API | FastAPI | Typed HTTP endpoints, middleware, health checks, and docs |
+| Agent workflow | LangGraph | Stateful nodes, conditional edges, and bounded correction |
+| LLMs | Groq + provider factory | Default hosted model plus user-selected providers |
+| Schema embeddings | FastEmbed / MiniLM | Lightweight local schema and question vectors |
+| Vector search | Pinecone + FAISS fallback | Connection-scoped semantic retrieval |
+| SQL access | SQLAlchemy | PostgreSQL, MySQL, and SQLite connections |
+| Secret storage | Fernet encryption | Protects database URLs and provider credentials at rest |
+| Queue | Upstash Redis | Rebuildable demo-data and background jobs |
+| Deployment | Docker + Render | Reproducible container deployment |
+| Demo database | Supabase PostgreSQL | Persistent external data for the live demo |
 
-## Project Structure
+## Repository map
 
-The repository uses a compatibility-preserving modular layout. The detailed map,
-runtime flow, and rules for adding files are in
-[`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md).
-
-```
+```text
 NerfSQL/
-│
-├── app/
-│   ├── api.py              # FastAPI routes and middleware
-│   ├── main.py             # Query orchestration
-│   ├── core/               # Settings and sessions
-│   ├── graph/              # LangGraph state, nodes, and edges
-│   ├── retriever/          # Pinecone + FAISS schema retrieval
-│   ├── llm/                # Provider factory, profiles, and prompts
-│   ├── db/                 # Connections, engines, and execution
-│   ├── validators/         # Read-only SQL safety checks
-│   └── utils/              # Parsing and shared helpers
-│
-├── configs/
-│   ├── model.yaml
-│   ├── db.yaml
-│
-├── data/
-│   ├── schema_chunks.json
-│
-├── tests/
-│   ├── eval_queries.json   # input + expected outputs
-│
-├── scripts/
-│   ├── ingest_schema.py
-│
-├── docs/
-│   └── PROJECT_STRUCTURE.md # Detailed structure and compatibility rules
-├── Readme.md
-└── requirements.txt
+├── app/                         # Production backend
+│   ├── api.py                   # FastAPI routes and middleware
+│   ├── main.py                  # Query orchestration and sessions
+│   ├── core/                    # Settings and session state
+│   ├── graph/                   # LangGraph state, nodes, and transitions
+│   ├── db/                      # Connection profiles and SQL execution
+│   ├── llm/                     # Provider factory, profiles, and prompts
+│   ├── retriever/               # Pinecone/FAISS schema retrieval
+│   ├── validators/              # Read-only SQL guardrails
+│   ├── utils/                   # TOON parsing and shared helpers
+│   └── queue.py                 # Upstash seed-job queue
+├── api/index.py                 # Vercel adapter that exports app.api:app
+├── frontend/                    # Static browser client
+├── scripts/                     # Schema ingestion and demo-data jobs
+├── tests/                       # Unit, integration, benchmark, and load tests
+├── data/seed/                   # SQL seed/schema files
+├── docs/                        # Architecture, benchmark, API, and interview docs
+├── artifacts/                   # Generated DOCX/PDF project handbook
+├── configs/                     # Model and database YAML configuration
+├── Dockerfile                   # Render/container image
+├── docker-compose.yml           # Local container with persistent data volume
+├── render.yaml                  # Render service configuration
+├── requirements.txt             # Runtime dependencies
+└── .env.example                 # Safe configuration template
 ```
 
----
+The detailed compatibility rules are in [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md).
 
-## Installation
+## Quick start
+
+### Install
 
 ```bash
 git clone https://github.com/sdm0p/NerfSQL.git
 cd NerfSQL
-
 python -m venv venv
-source venv/bin/activate
+```
 
+```powershell
+# Windows PowerShell
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
----
-
-## Configuration
-
-### Environment Variables
-
 ```bash
+# macOS/Linux
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Configure
+
+Copy `.env.example` to `.env` and set the values you use locally:
+
+```env
 GROQ_API_KEY=your_key
 DB_URI=sqlite:///data/local.db
 PINECONE_API_KEY=your_key
-PINECONE_INDEX_NAME=sql-schema-rag
+PINECONE_INDEX_NAME=nerfsql-schema
 PINECONE_NAMESPACE=default
 PINECONE_REGION=us-east-1
+SECRETS_ENCRYPTION_KEY=your_fernet_key
 ```
 
----
+Never commit `.env` or real API keys. Generate a Fernet key with:
 
-### Schema Ingestion
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
 
-Create and seed the local SQLite database from the provided sustainability schema:
+### Create, ingest, and run
 
 ```bash
 python scripts/create_sample_db.py
+python scripts/ingest_schema.py --db_uri sqlite:///data/local.db --output data/schema_chunks.json
+python run.py
+```
+
+Open `http://localhost:8000/frontend/` for the UI or `http://localhost:8000/docs` for Swagger.
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
+The Compose volume keeps `/app/data` persistent across container restarts. Render uses the same Docker image; its external Supabase, Pinecone, and Upstash services remain outside the container.
+
+## API examples
+
+```bash
+curl http://localhost:8000/health
 ```
 
 ```bash
-python scripts/ingest_schema.py \
-  --db_uri $DB_URI \
-  --output data/schema_chunks.json
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Which customer spent the most?","schema_strategy":"rag"}'
 ```
 
-Optional flags:
-
-```bash
-python scripts/ingest_schema.py \
-   --db_uri $DB_URI \
-   --output data/schema_chunks.json \
-   --pinecone_index $PINECONE_INDEX_NAME \
-   --pinecone_namespace $PINECONE_NAMESPACE \
-   --pinecone_region $PINECONE_REGION
-```
-
-This will:
-
-- Extract tables, columns, relationships
-- Chunk schema
-- Generate embeddings
-
----
-
-## Usage
-
-### Run Query
-
-```python
-from app.main import query_agent
-
-response = query_agent(
-    question="Get top 5 customers by revenue in last 3 months"
-)
-
-print(response.sql)
-print(response.result)
-```
-
----
-
-### Example Flow
-
-**Input:**
-
-```
-"Show total travel emissions per user in April 2026"
-```
-
-**System:**
-
-1. Retrieves relevant tables (`travel_entries`, `users`, `emission_factors`)
-2. Generates SQL
-3. Executes → error (wrong column)
-4. Corrects query
-5. Executes successfully
-
----
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Lightweight liveness check |
+| GET | `/ready` | Readiness/configuration check |
+| POST | `/connections` | Add and validate a database connection |
+| GET | `/connections` | List connection metadata without secrets |
+| POST | `/connections/{id}/schema/ingest` | Refresh a connection's vectors |
+| POST | `/providers` | Add and validate an LLM provider profile |
+| GET | `/providers` | List provider metadata without secrets |
+| POST | `/query` | Run the agentic Text-to-SQL workflow |
+| GET | `/history` | Review in-memory chat sessions |
+| POST | `/jobs/seed` | Queue a rebuildable demo-data job |
 
 ## Evaluation
 
-Run benchmark queries:
-
 ```bash
 python -m tests.run_eval
+python -m tests.run_metrics
 ```
 
-For reproducible RAG-versus-full-schema metrics across 55 labeled cases, token
-usage, hallucination rate, latency percentiles, and free load testing, see
-[`docs/BENCHMARK.md`](docs/BENCHMARK.md).
+The benchmark measures execution success, semantic correctness, retrieval Recall@K, hallucination rate, retries, token usage, and latency. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
 
-Metrics:
+The earlier headline claims—90%+ accuracy, 45% hallucination reduction, 30% token reduction, and sub-200 ms p95—should be treated as targets until a completed benchmark report verifies them. Free-provider rate limits interrupted the latest full run.
 
-- Execution success rate
-- Query correctness
-- Retry count
-- Latency per query
+## Security model
 
----
+- Provider API keys, database URLs, and custom base URLs are encrypted with Fernet.
+- Secret values are excluded from API responses and normal logs.
+- Each connection gets its own SQLAlchemy engine and Pinecone namespace.
+- The SQL guard blocks `DROP`, `DELETE`, `TRUNCATE`, `ALTER`, `INSERT`, `UPDATE`, and `CREATE`.
+- The correction loop has a maximum retry budget.
+- Custom provider URLs are validated against unsafe private/cloud-metadata targets.
 
-## Guardrails
+For production, add authenticated tenant ownership, database-level read-only roles, persistent PostgreSQL metadata storage, rate limits, timeouts, and durable tracing. The current Render metadata store is still SQLite inside the container unless `CONNECTION_STORE_URI` points to external persistent storage.
 
-- Blocks:
-  - `DROP`, `DELETE`, `TRUNCATE`, `ALTER`
+## Current limitations
 
-- Enforces:
-  - read-only queries
-  - schema-constrained SQL
+- Retrieval is currently dense top-K search; hybrid keyword search and reranking are roadmap items.
+- A schema chunk is table-level, so business descriptions and FK-neighbor expansion can still improve recall.
+- In-memory chat history does not survive a process restart.
+- LLM and embedding cold starts affect the first request after deployment sleep.
+- Provider quotas can interrupt a full benchmark run.
 
-- Retry limit:
-  - default: 3 attempts
+## Roadmap
 
----
+1. Persistent PostgreSQL metadata and chat history.
+2. Authentication and tenant ownership.
+3. Database-level read-only roles, statement timeouts, and result limits.
+4. Async schema indexing with durable job status.
+5. Hybrid retrieval, foreign-key expansion, adaptive top-K, and reranking.
+6. Provider fallback, circuit breakers, and cost-aware routing.
+7. Durable traces and a completed reproducible benchmark report.
 
-## Limitations
+## Interview-ready summary
 
-- LLM hallucination still possible (reduced, not eliminated)
-- Complex joins across large schemas may degrade accuracy
-- Performance depends on schema quality and indexing
-- Groq-hosted models may struggle with deeply nested queries
+> NerfSQL is a stateful agentic Text-to-SQL system. It retrieves connection-specific schema context, asks a selected LLM to generate read-only SQL, validates the query semantically and syntactically, executes it against the selected database, and uses bounded error feedback to repair failures. LangGraph makes the workflow explicit, Pinecone reduces irrelevant schema context, and FastAPI exposes the system as a deployable service.
 
----
+## Documentation
 
-## Future Work
-
-- Cost-based query optimization feedback
-- Fine-tuned text-to-SQL model
-- UI for query tracing and debugging
-- Support for multi-database federation
-- Reinforcement learning from execution feedback
-
----
-
-## Why This Project Exists
-
-Most text-to-SQL demos fail because they:
-
-- ignore schema scale
-- lack validation
-- rely on single-pass generation
-
-This project focuses on:
-
-- **correctness over novelty**
-- **bounded autonomy over blind generation**
-- **real execution over synthetic examples**
-
----
+- [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) — architecture and compatibility rules
+- [`docs/BENCHMARK.md`](docs/BENCHMARK.md) — evaluation methodology
+- [`docs/NerfSQL_Documentation.md`](docs/NerfSQL_Documentation.md) — extended project notes
+- [`docs/interview/INTERVIEW_PREP.md`](docs/interview/INTERVIEW_PREP.md) — interview preparation
+- [`artifacts/NerfSQL_AI_Engineer_Project_Handbook.pdf`](artifacts/NerfSQL_AI_Engineer_Project_Handbook.pdf) — complete handbook
 
 ## License
 
-MIT License
-
----
-
-## Final Note
-
-This is not a “one-shot LLM demo.”
-It is a constrained system that treats LLMs as unreliable components and compensates accordingly.
+MIT License.
