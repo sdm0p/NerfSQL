@@ -115,4 +115,8 @@ def query_agent(question: str, chat_id: Optional[str] = None, connection_id: Opt
         chat_id=chat_id,
         connection_id=final.get("connection_id"), provider_id=final.get("provider_id"),
         model=final.get("model"),
+        schema_strategy=schema_strategy,
+        input_tokens=final.get("input_tokens", 0), output_tokens=final.get("output_tokens", 0),
+        llm_calls=final.get("llm_calls", 0), llm_latency_ms=final.get("llm_latency_ms", 0.0),
+        total_latency_ms=round((time.perf_counter() - started) * 1000, 2),
     )

@@ -36,6 +36,12 @@ class ResponseRecord:
     connection_id: Optional[str] = None
     provider_id: Optional[str] = None
     model: Optional[str] = None
+    schema_strategy: str = "rag"
+    input_tokens: int = 0
+    output_tokens: int = 0
+    llm_calls: int = 0
+    llm_latency_ms: float = 0.0
+    total_latency_ms: float = 0.0
 
 
 @dataclass
@@ -114,7 +120,9 @@ class SessionManager:
 
     def add_response(self, chat_id: str, sql: str, sql_raw: str, result: Optional[list],
                     error: Optional[str], retries: int, connection_id: Optional[str] = None,
-                    provider_id: Optional[str] = None, model: Optional[str] = None) -> bool:
+                    provider_id: Optional[str] = None, model: Optional[str] = None,
+                    schema_strategy: str = "rag", input_tokens: int = 0, output_tokens: int = 0,
+                    llm_calls: int = 0, llm_latency_ms: float = 0.0, total_latency_ms: float = 0.0) -> bool:
         """
         Add a response to an existing session.
         Returns True if successful, False if chat_id not found.
@@ -131,6 +139,8 @@ class SessionManager:
             error=error,
             retries=retries,
             connection_id=connection_id, provider_id=provider_id, model=model,
+            schema_strategy=schema_strategy, input_tokens=input_tokens, output_tokens=output_tokens,
+            llm_calls=llm_calls, llm_latency_ms=llm_latency_ms, total_latency_ms=total_latency_ms,
         )
         with self._lock:
             session.responses.append(response_record)
@@ -202,6 +212,12 @@ class SessionManager:
                         "connection_id": r.connection_id,
                         "provider_id": r.provider_id,
                         "model": r.model,
+                        "schema_strategy": r.schema_strategy,
+                        "input_tokens": r.input_tokens,
+                        "output_tokens": r.output_tokens,
+                        "llm_calls": r.llm_calls,
+                        "llm_latency_ms": r.llm_latency_ms,
+                        "total_latency_ms": r.total_latency_ms,
                     }
                     for r in session.responses
                 ],
