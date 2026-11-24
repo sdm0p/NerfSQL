@@ -26,8 +26,11 @@ class SchemaRetriever:
             except Exception:
                 self.pinecone_index = None
 
-        with open(chunks_path) as f:
-            self.chunks: list[str] = json.load(f)
+        try:
+            with open(chunks_path) as f:
+                self.chunks: list[str] = json.load(f)
+        except FileNotFoundError:
+            self.chunks = []
         if self.chunks:
             embeddings = np.array(list(self.model.embed(self.chunks)))
             self.index = faiss.IndexFlatL2(embeddings.shape[1])

@@ -6,6 +6,7 @@ from app.core.session import SessionManager
 from app.graph.graph import build_graph
 from app.retriever.schema_retriever import SchemaRetriever
 from app.db.connections import get_connection_engine
+from app.db.engine import get_engine
 from scripts.ingest_schema import connection_schema_namespace, extract_schema_from_engine
 
 _ = settings
@@ -44,7 +45,10 @@ def _schema_for_query(question: str, connection_id: Optional[str], schema_strate
         # indexing. Live introspection keeps queries correct in either case.
         engine = get_connection_engine(connection_id, owner_id="default")
         return "\n".join(extract_schema_from_engine(engine))
-    return _get_retriever().retrieve(question)
+    if schema_strategy == "full":
+        return "\n".join(extract_schema_from_engine(get_engine()))
+    retrieved = _get_retriever().retrieve(question)
+    return retrieved or "\n".join(extract_schema_from_engine(get_engine()))
 
 @dataclass
 class QueryResponse:
